@@ -55,6 +55,7 @@ def verify_file_structure():
         "Dockerfile.web",
         "docker-compose.yml",
         "nginx.conf",
+        "requirements.txt",
     ]
     for rel_path in required_paths:
         p = PROJECT_ROOT / rel_path
