@@ -1,0 +1,73 @@
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: relationship-os-api
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY:-changethis-secret-key-in-production-must-be-32-chars-long}
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/data/relationship_os.db}
+      - STORAGE_LOCAL_PATH=/app/storage_uploads
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1,http://localhost:3000,http://localhost:8000}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID:-}
+      - OUTBOX_POLL_INTERVAL=1.0
+      - OUTBOX_MAX_RETRIES=5
+    volumes:
+      - api_data:/app/data
+      - storage_uploads:/app/storage_uploads
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: relationship-os-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # Optional production PostgreSQL container (activate with: docker compose --profile postgres up -d)
+  postgres:
+    image: postgres:16-alpine
+    container_name: relationship-os-postgres
+    restart: unless-stopped
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: relationship_user
+      POSTGRES_PASSWORD: relationship_secure_password
+      POSTGRES_DB: relationship_os
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relationship_user -d relationship_os"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  api_data:
+  storage_uploads:
+  postgres_data:

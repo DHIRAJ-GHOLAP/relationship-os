@@ -1,0 +1,76 @@
+# Git ignore for Relationship OS
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+env/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Linting & Formatting
+.ruff_cache/
+.mypy_cache/
+
+# Databases & Local Storage
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+storage_uploads/
+tmp/
+temp/
+
+# Logs
+*.log
+logs/
+
+# Secrets & Environment
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+
+# Node / Web
+node_modules/
+.next/
+out/
+.npm/
+
+# IDE & OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
