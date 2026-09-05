@@ -10,6 +10,8 @@ import sys
 from datetime import datetime, timezone
 from sqlalchemy import select
 
+import secrets
+
 # Ensure project root in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -32,7 +34,7 @@ async def seed():
         # 1. Seed or find Owner
         owner_res = await db.execute(select(User).where(User.username == "owner"))
         owner = owner_res.scalar_one_or_none()
-        owner_pass = "OwnerSecurePass123!"
+        owner_pass = os.getenv("SEED_OWNER_PASSWORD") or f"Owner_{secrets.token_urlsafe(12)}"
 
         if not owner:
             owner = await AuthService.create_user(
@@ -49,7 +51,7 @@ async def seed():
         # 2. Seed or find Recipient
         recipient_res = await db.execute(select(User).where(User.username == "recipient"))
         recipient = recipient_res.scalar_one_or_none()
-        recipient_pass = "RecipientSecurePass123!"
+        recipient_pass = os.getenv("SEED_RECIPIENT_PASSWORD") or f"Recipient_{secrets.token_urlsafe(12)}"
 
         if not recipient:
             recipient = await AuthService.create_user(

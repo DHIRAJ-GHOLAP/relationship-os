@@ -54,9 +54,9 @@ services:
     restart: unless-stopped
     profiles: ["postgres"]
     environment:
-      POSTGRES_USER: relationship_user
-      POSTGRES_PASSWORD: relationship_secure_password
-      POSTGRES_DB: relationship_os
+      POSTGRES_USER: ${POSTGRES_USER:-relationship_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changethis_postgres_password}
+      POSTGRES_DB: ${POSTGRES_DB:-relationship_os}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
