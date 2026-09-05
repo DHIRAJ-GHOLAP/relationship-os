@@ -27,7 +27,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: ALLOWED_ORIGINS
-        value: "https://*.pages.dev,https://*.render.com,http://localhost:3000,http://localhost:8000"
+        value: "https://vaidu.gholap.xyz,https://*.gholap.xyz,https://*.pages.dev,https://*.render.com,http://localhost:3000,http://localhost:8000"
       - key: OUTBOX_POLL_INTERVAL
         value: "1.0"
       - key: OUTBOX_MAX_RETRIES

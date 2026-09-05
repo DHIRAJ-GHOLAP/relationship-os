@@ -77,11 +77,39 @@ Every push to `master` will build the frontend and deploy to Cloudflare Pages au
 
 ---
 
-## 4. CORS & WebSockets Verification
+## 4. Custom Domain Setup (`vaidu.gholap.xyz`)
 
-Render's backend service allows connections from Cloudflare Pages via:
+To link your custom domain `vaidu.gholap.xyz`:
+
+### Step 1: Connect Frontend (`vaidu.gholap.xyz`) on Cloudflare Pages
+1. Go to **Cloudflare Dashboard** $\rightarrow$ **Workers & Pages** $\rightarrow$ select your Pages project.
+2. Navigate to the **Custom domains** tab and click **Set up a custom domain**.
+3. Type: `vaidu.gholap.xyz`.
+4. Click **Continue** $\rightarrow$ **Activate domain**.
+   * Since your zone `gholap.xyz` is hosted on Cloudflare, DNS records and SSL are configured automatically with zero downtime.
+
+### Step 2: Connect Backend API (`api.vaidu.gholap.xyz`) on Render
+1. Go to **Render Dashboard** $\rightarrow$ select `relationship-os-backend`.
+2. Click **Settings** $\rightarrow$ scroll down to **Custom Domains** $\rightarrow$ click **Add Custom Domain**.
+3. Type: `api.vaidu.gholap.xyz`.
+4. In your Cloudflare DNS table for `gholap.xyz`, add a CNAME record:
+   * **Type:** `CNAME`
+   * **Name:** `api.vaidu`
+   * **Target:** Your Render service URL (e.g., `relationship-os-backend.onrender.com`)
+   * **Proxy status:** DNS Only (gray cloud) initially while Render issues certificate, or Proxied (orange cloud) with SSL set to Full (strict).
+
+### Step 3: Set Frontend Environment Variable
+In your Cloudflare Pages project $\rightarrow$ **Settings** $\rightarrow$ **Environment variables**:
+* Set `VITE_API_BASE_URL` to `https://api.vaidu.gholap.xyz`.
+
+---
+
+## 5. CORS & WebSockets Verification
+
+Render's backend service allows connections from your domain via:
 ```yaml
 - key: ALLOWED_ORIGINS
-  value: "https://*.pages.dev,https://*.render.com,http://localhost:3000,http://localhost:8000"
+  value: "https://vaidu.gholap.xyz,https://*.gholap.xyz,https://*.pages.dev,https://*.render.com,http://localhost:3000,http://localhost:8000"
 ```
-Both REST API requests and WebSocket subscriptions (`wss://relationship-os-backend.onrender.com/ws/chat/{conversation_id}`) will connect seamlessly across origins.
+Both REST API requests and WebSocket subscriptions (`wss://api.vaidu.gholap.xyz/api/v1/ws?token=...`) will connect securely across origins.
+
