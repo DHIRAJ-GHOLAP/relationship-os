@@ -45,9 +45,17 @@ export class WebChatSocket {
 
     this.callbacks.onStatusChange("CONNECTING");
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/api/v1/ws?token=${encodeURIComponent(this.token)}`;
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+    let wsUrl = "";
+    if (apiBase) {
+      const parsed = new URL(apiBase, window.location.href);
+      const wsProtocol = parsed.protocol === "https:" ? "wss:" : "ws:";
+      wsUrl = `${wsProtocol}//${parsed.host}/api/v1/ws?token=${encodeURIComponent(this.token)}`;
+    } else {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = window.location.host;
+      wsUrl = `${protocol}//${host}/api/v1/ws?token=${encodeURIComponent(this.token)}`;
+    }
 
     try {
       this.ws = new WebSocket(wsUrl);

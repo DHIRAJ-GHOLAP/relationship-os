@@ -1,6 +1,6 @@
 import { Conversation, Message, User } from "../types";
 
-const BASE_URL = "";
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
 export class ApiService {
   private static token: string | null = localStorage.getItem("relationship_os_token");
