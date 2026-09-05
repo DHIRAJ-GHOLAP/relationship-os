@@ -45,6 +45,9 @@ TestingSessionLocal = async_sessionmaker(
 apps.api.src.core.database.AsyncSessionLocal = TestingSessionLocal
 apps.api.src.routers.websocket.AsyncSessionLocal = TestingSessionLocal
 apps.api.src.services.outbox_worker.AsyncSessionLocal = TestingSessionLocal
+# Disable automatic background outbox loop during tests to prevent race conditions with mock routers
+apps.api.src.main.outbox_worker.start = lambda *args, **kwargs: None
+
 
 
 @pytest_asyncio.fixture(scope="function")

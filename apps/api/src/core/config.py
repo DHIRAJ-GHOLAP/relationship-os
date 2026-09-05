@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # Integrations: Discord
     DISCORD_ENABLED: bool = False
     DISCORD_BOT_TOKEN: Optional[str] = None
+    DISCORD_BACKUP_TOKENS: str = ""
     DISCORD_CHANNEL_ID: Optional[str] = None
     DISCORD_GUILD_ID: Optional[str] = None
     DISCORD_OWNER_USER_ID: Optional[str] = None
@@ -75,6 +76,11 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> List[str]:
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def discord_bot_tokens(self) -> List[str]:
+        raw = f"{self.DISCORD_BOT_TOKEN or ''},{self.DISCORD_BACKUP_TOKENS or ''}"
+        return [t.strip() for t in raw.split(",") if t.strip()]
 
     @field_validator("SESSION_SECRET", mode="before")
     @classmethod

@@ -30,7 +30,7 @@ class DiscordAdapter(IntegrationAdapter):
     async def validate_config(self) -> Tuple[bool, str]:
         if not settings.DISCORD_ENABLED:
             return False, "Discord integration is disabled in configuration"
-        if not settings.DISCORD_BOT_TOKEN and not settings.DISCORD_WEBHOOK_URL:
+        if not settings.discord_bot_tokens and not settings.DISCORD_WEBHOOK_URL:
             return False, "Neither DISCORD_BOT_TOKEN nor DISCORD_WEBHOOK_URL is configured"
         return True, "Configured"
 
@@ -53,9 +53,9 @@ class DiscordAdapter(IntegrationAdapter):
             f"```\n{sanitized_body}\n```"
         )
 
-        try:
-            # 1. Preferred: Discord Webhook if configured
-            if settings.DISCORD_WEBHOOK_URL:
+        # 1. Preferred: Discord Webhook if configured
+        if settings.DISCORD_WEBHOOK_URL:
+            try:
                 resp = await self._client.post(
                     settings.DISCORD_WEBHOOK_URL,
                     json={
@@ -64,13 +64,32 @@ class DiscordAdapter(IntegrationAdapter):
                         "allowed_mentions": {"parse": []}
                     },
                 )
-            # 2. Or Discord Bot Channel API
-            elif settings.DISCORD_BOT_TOKEN and settings.DISCORD_CHANNEL_ID:
-                url = f"https://discord.com/api/v10/channels/{settings.DISCORD_CHANNEL_ID}/messages"
-                headers = {
-                    "Authorization": f"Bot {settings.DISCORD_BOT_TOKEN}",
-                    "Content-Type": "application/json",
-                }
+                if resp.status_code in (200, 201, 204):
+                    try:
+                        ext_id = str(resp.json().get("id", "discord_webhook_ok"))
+                    except Exception:
+                        ext_id = "discord_webhook_ok"
+                    return True, ext_id, None
+                logger.warning(f"Discord webhook failed with HTTP {resp.status_code}. Failing over to bot pool...")
+            except Exception as e:
+                logger.warning(f"Discord webhook error: {e}. Failing over to bot pool...")
+
+        # 2. Multi-bot failover pool
+        bot_tokens = settings.discord_bot_tokens
+        if not bot_tokens:
+            return False, None, "No bot tokens configured and webhook unavailable"
+
+        if not settings.DISCORD_CHANNEL_ID:
+            return False, None, "Missing DISCORD_CHANNEL_ID for bot channel delivery"
+
+        last_error = None
+        for idx, token in enumerate(bot_tokens):
+            url = f"https://discord.com/api/v10/channels/{settings.DISCORD_CHANNEL_ID}/messages"
+            headers = {
+                "Authorization": f"Bot {token}",
+                "Content-Type": "application/json",
+            }
+            try:
                 resp = await self._client.post(
                     url,
                     headers=headers,
@@ -79,28 +98,28 @@ class DiscordAdapter(IntegrationAdapter):
                         "allowed_mentions": {"parse": []}
                     },
                 )
-            else:
-                return False, None, "Missing channel ID or webhook URL"
+                if resp.status_code in (200, 201, 204):
+                    try:
+                        ext_id = str(resp.json().get("id", f"discord_bot_{idx}_ok"))
+                    except Exception:
+                        ext_id = f"discord_bot_{idx}_ok"
+                    if idx > 0:
+                        logger.info(f"Delivered message to Discord via backup bot #{idx + 1}.")
+                    return True, ext_id, None
+                else:
+                    last_error = f"Bot #{idx + 1} rejected with HTTP {resp.status_code}"
+                    logger.warning(f"{last_error}. Failing over to next bot in pool...")
+            except httpx.TimeoutException:
+                last_error = f"Bot #{idx + 1} timed out"
+                logger.warning(f"{last_error}. Failing over to next bot in pool...")
+            except httpx.RequestError as e:
+                last_error = f"Bot #{idx + 1} network error: {e}"
+                logger.warning(f"{last_error}. Failing over to next bot in pool...")
+            except Exception as e:
+                last_error = f"Bot #{idx + 1} error: {e}"
+                logger.warning(f"{last_error}. Failing over to next bot in pool...")
 
-            if resp.status_code in (200, 201, 204):
-                try:
-                    ext_id = str(resp.json().get("id", "discord_ok"))
-                except Exception:
-                    ext_id = "discord_ok"
-                return True, ext_id, None
-            elif resp.status_code == 429:
-                return False, None, f"Discord rate limited (HTTP 429): {resp.text}"
-            elif resp.status_code >= 500:
-                return False, None, f"Discord server error (HTTP {resp.status_code}): {resp.text}"
-            else:
-                return False, None, f"Discord permanent API rejection (HTTP {resp.status_code}): {resp.text}"
-
-        except httpx.TimeoutException:
-            return False, None, "Discord request timed out (transient)"
-        except httpx.RequestError as e:
-            return False, None, f"Discord network error: {str(e)}"
-        except Exception as e:
-            return False, None, f"Unexpected Discord adapter error: {str(e)}"
+        return False, None, f"All {len(bot_tokens)} Discord bots failed. Last error: {last_error}"
 
     async def health_check(self) -> Dict[str, Any]:
         valid, msg = await self.validate_config()

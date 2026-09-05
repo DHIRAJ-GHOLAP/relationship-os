@@ -96,6 +96,64 @@ async def test_discord_send_via_mock_transport():
         settings.DISCORD_WEBHOOK_URL = original_webhook
 
 
+@pytest.mark.asyncio
+async def test_discord_multi_bot_failover():
+    """Verify that when the primary bot token fails, the adapter automatically fails over to backup bot."""
+    original_enabled = settings.DISCORD_ENABLED
+    original_webhook = settings.DISCORD_WEBHOOK_URL
+    original_token = settings.DISCORD_BOT_TOKEN
+    original_backups = settings.DISCORD_BACKUP_TOKENS
+    original_channel = settings.DISCORD_CHANNEL_ID
+
+    called_auth_headers = []
+
+    def handle_bot_request(request: httpx.Request) -> httpx.Response:
+        auth = request.headers.get("Authorization", "")
+        called_auth_headers.append(auth)
+        if "primary_token" in auth:
+            # Simulate rate limit on primary bot
+            return httpx.Response(429, json={"message": "You are being rate limited."})
+        elif "backup_token_alice" in auth:
+            # Backup bot succeeds
+            return httpx.Response(200, json={"id": "discord-msg-alice-777"})
+        return httpx.Response(500, json={"error": "Unknown bot"})
+
+    transport = httpx.MockTransport(handle_bot_request)
+    mock_client = httpx.AsyncClient(transport=transport)
+
+    settings.DISCORD_ENABLED = True
+    settings.DISCORD_WEBHOOK_URL = None
+    settings.DISCORD_BOT_TOKEN = "primary_token"
+    settings.DISCORD_BACKUP_TOKENS = "backup_token_alice,backup_token_john"
+    settings.DISCORD_CHANNEL_ID = "123456789"
+
+    try:
+        adapter = DiscordAdapter(client=mock_client)
+        event = CanonicalMessageEvent(
+            event_id="evt-disc-failover",
+            event_type=EventType.MESSAGE_CREATED,
+            conversation_id="c1",
+            message_id="m1",
+            sender_id="u1",
+            sender_name="Alice",
+            sequence=10,
+            origin="chat",
+            message=MessagePayload(body="Testing failover"),
+        )
+        success, ext_id, err = await adapter.send(event)
+        assert success is True
+        assert ext_id == "discord-msg-alice-777"
+        assert len(called_auth_headers) == 2
+        assert "primary_token" in called_auth_headers[0]
+        assert "backup_token_alice" in called_auth_headers[1]
+    finally:
+        settings.DISCORD_ENABLED = original_enabled
+        settings.DISCORD_WEBHOOK_URL = original_webhook
+        settings.DISCORD_BOT_TOKEN = original_token
+        settings.DISCORD_BACKUP_TOKENS = original_backups
+        settings.DISCORD_CHANNEL_ID = original_channel
+
+
 # ==========================================
 # 2. Webhook Adapter Tests (SSRF & HMAC)
 # ==========================================
