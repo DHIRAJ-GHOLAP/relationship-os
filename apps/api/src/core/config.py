@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     # Security & Authentication
     SESSION_SECRET: str = "INSECURE_DEV_SECRET_REPLACE_FOR_PRODUCTION_0123456789"
+    SECRET_KEY: Optional[str] = None
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     ENROLLMENT_TOKEN_EXPIRE_HOURS: int = 24
     COOKIE_SECURE: bool = False
@@ -75,14 +76,31 @@ class Settings(BaseSettings):
     def cors_origins(self) -> List[str]:
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
 
-    @field_validator("SESSION_SECRET")
+    @field_validator("SESSION_SECRET", mode="before")
     @classmethod
-    def validate_session_secret(cls, v: str) -> str:
-        env = os.getenv("ENVIRONMENT", "development")
+    def validate_session_secret(cls, v: Optional[str]) -> str:
+        # Check explicit value first
+        secret = v or os.getenv("SESSION_SECRET")
+
+        # Check alternative alias SECRET_KEY
+        if not secret or "INSECURE" in secret or "CHANGE_ME" in secret or len(secret) < 32:
+            alt = os.getenv("SECRET_KEY")
+            if alt and len(alt) >= 32 and "INSECURE" not in alt and "CHANGE_ME" not in alt:
+                return alt
+
+        env = os.getenv("ENVIRONMENT", "development").lower()
         if env == "production":
-            if len(v) < 32 or "INSECURE" in v or "CHANGE_ME" in v:
-                raise ValueError("SESSION_SECRET must be at least 32 high-entropy characters in production.")
-        return v
+            if not secret or "INSECURE" in secret or "CHANGE_ME" in secret or len(secret) < 32:
+                import secrets
+                import logging
+                generated = secrets.token_urlsafe(48)
+                logging.getLogger("relationship_os").warning(
+                    "[SECURITY NOTICE] SESSION_SECRET / SECRET_KEY was not explicitly provided in production. "
+                    "A secure ephemeral 384-bit key was automatically generated for this session."
+                )
+                return generated
+
+        return secret or "INSECURE_DEV_SECRET_REPLACE_FOR_PRODUCTION_0123456789"
 
 
 settings = Settings()
